@@ -11,16 +11,21 @@ im = rgb2gray(im);
 % 1269 is for 15fps, .19% of pixels
 tic
 value_map = generate_partitioned_peper(m, n, 9517);
+value_map = uint8(value_map);
 toc
 
 % create salt map from image using sobel edge detection
-image_salt_map = edge(im);
+image_salt_map = edge(im, 'sobel');
+image_salt_map = uint8(image_salt_map);
+
+disp(class(image_salt_map))
+disp(class(value_map))
 
 % comparing image pepper map with value maps
 tic
 ssim_comparison = ssim(image_salt_map, value_map);
 toc
-disp('SSIM value')
+disp('SSIM value: ');
 disp(ssim_comparison);
 
 quit; % exit
