@@ -16,19 +16,14 @@ squares_in_con = 40;
 base = 80;
 concentrations = ones(num_of_con,squares_in_con);
 for mc = 1:num_of_con
-    for i = squares_in_con+4:4:base
+    for i = squares_in_con:4:base
         index = randi(squares_in_con);
-        concentrations(mc,index) = concentrations(mc,index) + 4;
-    end
-    
-    if (sum(concentrations(mc,:)) ~= base)
-        fprintf('Issue with concentration %i\n', mc);
+        concentrations(mc,index) = concentrations(mc,index) + 3;
     end
     
     % this is so rare now we may as well remove it
     if (rowMatch(concentrations(mc,:), concentrations, mc) ~= 0)
         % we want to generate a new row instead and overwrite this one
-        fprintf('Removing matching row at %i from concentrations\n', mc);
         mc = mc - 1;
     end
 end
@@ -55,8 +50,8 @@ ssim_comparison = 1;
 ssim_worst = -1;
 value_map = squeeze(value_maps(1,:,:));
 for i = 1:num_of_con
-    tmp = ssim(image_salt_map, squeeze(value_maps(i,:,:)));
-%     tmp = immse(image_salt_map, squeeze(value_maps(i,:,:)));
+%     tmp = ssim(image_salt_map, squeeze(value_maps(i,:,:)));
+    tmp = immse(image_salt_map, squeeze(value_maps(i,:,:)));
 
     if (tmp < ssim_comparison)
         ssim_comparison = tmp;
@@ -73,8 +68,6 @@ disp('SSIM values: ');
 disp(ssim_comparison);
 disp(ssim_worst);
 
-pause;
-%%
 % figure();
 % subplot(1,1,1);
 % imshowpair(image_salt_map, value_map, 'montage');
@@ -85,6 +78,7 @@ pause;
 % imshowpair(image_salt_map, worst_value_map, 'montage');
 % title('salt image and worst value map');
 
+pause;
 
 % values I would send, but in this case we're just leaving them in the
 % vector
