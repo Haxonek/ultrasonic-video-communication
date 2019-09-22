@@ -51,7 +51,7 @@ disp('Building pre-set tables')
 tic
 value_maps = zeros(num_of_con,m,n,'uint8');
 for mc = 1:num_of_con
-    value_maps(mc,:,:) = generate_partitioned_pepper2(m, n, 7812, squeeze(concentrations(mc,:)), squares_height, squares_width, base);
+    value_maps(mc,:,:) = generate_partitioned_pepper(m, n, 7812, squeeze(concentrations(mc,:)), squares_height, squares_width, base);
 end
 toc
 %% Create Sobel edge map
@@ -79,15 +79,19 @@ for i = 1:num_of_con
         best_index = i;
     end
 end
-disp('found best value map')
 % final should be set as value_map
 value_map = squeeze(value_maps(best_index,:,:));
 toc
 
+% Compare rankings to see how similar they are
+% disp('Salt Rank');
+% disp(reshape(salt_rank,[squares_width,squares_height])');
+% disp('Best Fit Concentration Rank')
+% disp(reshape(squeeze(conc_rank(best_index,:)),[squares_width,squares_height])');
+
 figure();
 imshowpair(image_salt_map, value_map, 'montage');
 title('salt image and best value map');
-disp('Showing salt image vs best value map')
 
 % Possibly re-add code to find worst value map, to ensure the maps are
 % being choosen correctly (would be map with largest immse value)
@@ -130,7 +134,10 @@ title('Original im and final reconstructed')
 
 
 
-
+%% Helper functions
+% All the functions called above are below, with a comment describing what
+% it does. Funcitons with obvious issues have a TODO
+%
 % Generates a matrix of ratios, where the values are pixel ratio / max
 % square pixel ratio, the max being 1 and the smallest (likely) being 1 /
 % max.
@@ -140,16 +147,10 @@ function ratio2 = generate_salt_rank(map, rows, cols)
     [mp,np] = size(map);
     
     m = ones(1,rows).*round(mp/rows);
-%     for i = 2:rows-1
-%         m(i) = i*m(1);
-%     end
     m(2:rows-1) = (2:rows-1)*m(1);
     m(rows) = mp;
     
     n = ones(1,cols).*round(np/cols);
-%     for i = 2:cols-1
-%         n(i) = i*n(1);
-%     end
     n(2:cols-1) = (2:cols-1)*n(1);
     n(cols) = np;
         
@@ -203,7 +204,6 @@ function ratio2 = generate_salt_rank(map, rows, cols)
             end
         end
     end
-    disp('done')
 end
 
 % This function takes all the concentations and creates a rank of each one,
@@ -217,7 +217,7 @@ function [conc_rank] = generate_conc_rank(concentrations, squares_height, square
     
     conc_rank = zeros(num,len);
 
-    for i = 1:1 % num -- just do one for now
+    for i = 1:num % -- just do one for now
         m_max_queue = java.util.LinkedList;
         n_max_queue = java.util.LinkedList;
         max_queue = java.util.LinkedList;
@@ -469,7 +469,7 @@ function im_map = generate_compressed_image(pepper_map, im)
     end
 end
 
-function pepper_map = generate_partitioned_pepper2(mp, np, total, concentrations, rows, cols, base)
+function pepper_map = generate_partitioned_pepper(mp, np, total, concentrations, rows, cols, base)
 
     if (size(concentrations) ~= rows*cols)
         disp('concentrations must equal to rows*cols')
@@ -478,15 +478,11 @@ function pepper_map = generate_partitioned_pepper2(mp, np, total, concentrations
     pepper_map = zeros(mp,np,'uint8');
     
     m = ones(1,rows,'uint16').*round(mp/rows);
-    for i = 2:rows-1
-        m(i) = i*m(1);
-    end
+    m(2:rows-1) = (2:rows-1)*m(1);
     m(rows) = mp;
     
     n = ones(1,cols,'uint16').*round(np/cols);
-    for i = 2:cols-1
-        n(i) = i*n(1);
-    end
+    n(2:cols-1) = (2:cols-1)*n(1);
     n(cols) = np;
         
     % iterate through each partitan, assign number of pixels to it equal to
