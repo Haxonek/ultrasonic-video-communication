@@ -1,3 +1,13 @@
+%% Generating pre-set maps
+% In theory each side would have one of these sets available to it. In
+% practice additionally we'd likely use a map for multiple frames and we'd
+% run these calculations on a seperate threat to reduce computation time.
+% Otherwise though we're just generating them using the specified
+% conditions, which allow for easy testing of different conditions. You
+% could also likely share the sets of maps using a huffman tree however you
+% will still want to be able to cache these on both sides to reduce
+% bandwidth.
+clear all;
 disp('Starting');
 
 im = imread('img/lower_res.png');
@@ -10,12 +20,12 @@ im = rgb2gray(im);
 num_of_con = 2048;
 % this referes to how many times the image will be broken up in each
 % concentration, it must match with what is hard coded in the function
-squares_height = 6;
-squares_width = 4;
+squares_height = 10;
+squares_width = 8;
 squares_in_con = squares_height*squares_width;
 
 % create map of conentrations of pixels
-base = 32;
+base = 160; % base must be > height * width && % 4
 concentrations = ones(num_of_con,squares_in_con);
 for mc = 1:num_of_con
     for i = squares_in_con+4:4:base
@@ -83,7 +93,7 @@ conc_rank = generate_conc_rank(concentrations, squares_height, squares_width);
 % finds the best match to the original salt rank
 % change to a linear programming model later, but just using immse for now
 best_index = 1;
-best_immse_value = 1;
+best_immse_value = 100;
 for i = 1:num_of_con
     % get immse value
     tmp_immse_value = immse(salt_rank, squeeze(conc_rank(i,:)));
@@ -598,9 +608,7 @@ function pepper_map = generate_partitioned_pepper2(mp, np, total, concentrations
         n(i) = i*n(1);
     end
     n(cols) = np;
-    
-%     base = 80;
-    
+        
     % iterate through each partitan, assign number of pixels to it equal to
     % the ratio assigned in concentrations
     for i = 1:rows
