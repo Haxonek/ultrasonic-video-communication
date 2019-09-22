@@ -20,12 +20,12 @@ im = rgb2gray(im);
 num_of_con = 2048;
 % this referes to how many times the image will be broken up in each
 % concentration, it must match with what is hard coded in the function
-squares_height = 10;
-squares_width = 8;
+squares_height = 8;
+squares_width = 6;
 squares_in_con = squares_height*squares_width;
 
 % create map of conentrations of pixels
-base = 160; % base must be > height * width && % 4
+base = 96; % base must be > height * width && % 4
 concentrations = ones(num_of_con,squares_in_con);
 for mc = 1:num_of_con
     for i = squares_in_con+4:4:base
@@ -140,15 +140,17 @@ function ratio2 = generate_salt_rank(map, rows, cols)
     [mp,np] = size(map);
     
     m = ones(1,rows).*round(mp/rows);
-    for i = 2:rows-1
-        m(i) = i*m(1);
-    end
+%     for i = 2:rows-1
+%         m(i) = i*m(1);
+%     end
+    m(2:rows-1) = (2:rows-1)*m(1);
     m(rows) = mp;
     
     n = ones(1,cols).*round(np/cols);
-    for i = 2:cols-1
-        n(i) = i*n(1);
-    end
+%     for i = 2:cols-1
+%         n(i) = i*n(1);
+%     end
+    n(2:cols-1) = (2:cols-1)*n(1);
     n(cols) = np;
         
     % iterate through each partitan, assign number of pixels to it equal to
@@ -204,6 +206,11 @@ function ratio2 = generate_salt_rank(map, rows, cols)
     disp('done')
 end
 
+% This function takes all the concentations and creates a rank of each one,
+% and returns it in a flat matrix form.
+% 
+% TODO - remove m and n max queue's, they're useless now and only slow down
+% the code.
 function [conc_rank] = generate_conc_rank(concentrations, squares_height, squares_width)
 
     [num,len] = size(concentrations);
@@ -231,7 +238,6 @@ function [conc_rank] = generate_conc_rank(concentrations, squares_height, square
                     cur_vals = m_max_queue.get(s);
                     if (cur_vals(2) < tmp_total && ~has_added_row_sum)
                         % assign to temp to be shifted
-%                         tmp_index = cur_vals;
                         % set sum to this spot
                         tmp_index = m_max_queue.set(s,[cur_m,tmp_total]);
                         % record that the row sum has already been added
