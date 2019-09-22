@@ -52,38 +52,15 @@ tic
 value_maps = zeros(num_of_con,m,n,'uint8');
 for mc = 1:num_of_con
     value_maps(mc,:,:) = generate_partitioned_pepper2(m, n, 7812, squeeze(concentrations(mc,:)), squares_height, squares_width, base);
-%     value_maps(mc,:,:) = generate_partitioned_pepper(m, n, 7812/2, squeeze(concentrations(mc,:)));
 end
 toc
 %% Create Sobel edge map
 % create salt map from image using sobel edge detection
 image_salt_map = uint8(edge(im, 'sobel'));
-image_salt_map = uint8(image_salt_map);
 
 %% decide on which value map to use
 
-% comparing image salt map with value maps
-% higher values = more similarity
-disp('Comparing all values to value')
 tic
-ssim_comparison = 1;
-ssim_worst = -1;
-% value_map = squeeze(value_maps(1,:,:));
-
-% edge pixels / edge pixels in max square
-% salt_ratio = generate_salt_ratio(image_salt_map, squares_height, squares_width);
-% min_conc_ratio = min(concentrations(1,:)); % should basically always be 1
-% conc_ratios = zeros(num_of_con, squares_in_con);
-% 
-% for i = 1:num_of_con
-%     conc_ratios(i,:) = (concentrations(i,:)-min_conc_ratio)./(max(concentrations(i,:))-min_conc_ratio);
-% end
-% 
-% [match, index] = find_closest_match(conc_ratios, salt_ratio);
-% 
-% value_map = squeeze(value_maps(index,:,:));
-% NEW method; rank them in order, fit ranks with optimization model
-
 % generate salt rank order
 salt_rank = generate_salt_rank(image_salt_map, squares_height, squares_width);
 
@@ -107,36 +84,13 @@ disp('found best value map')
 value_map = squeeze(value_maps(best_index,:,:));
 toc
 
-% for i = 1:num_of_con
-%     % create concentration ratio
-%     conc_ratio = concentrations(i,:)./max(concentrations(i,:));
-%     
-%     % Run linear program to compare
-%     
-%     
-% %     tmp = ssim(image_salt_map, squeeze(value_maps(i,:,:)));
-% %     tmp = immse(image_salt_map, squeeze(value_maps(i,:,:)));
-% 
-%     if (tmp < ssim_comparison)
-%         ssim_comparison = tmp;
-%         value_map = squeeze(value_maps(i,:,:));
-%     end
-%     
-%     if (tmp > ssim_worst)
-%         ssim_worst = tmp;
-%         worst_value_map = squeeze(value_maps(i,:,:));
-%     end
-% end
-% toc
-% disp('SSIM values: '); 
-% disp(ssim_comparison);
-% disp(ssim_worst);
-
 figure();
 imshowpair(image_salt_map, value_map, 'montage');
 title('salt image and best value map');
 disp('Showing salt image vs best value map')
-% 
+
+% Possibly re-add code to find worst value map, to ensure the maps are
+% being choosen correctly (would be map with largest immse value)
 % figure();
 % subplot(1,1,1);
 % imshowpair(image_salt_map, worst_value_map, 'montage');
@@ -165,10 +119,6 @@ toc
 [reconstructed_map_3, new_value_map_3] = reconstruct_image(reconstructed_map_3, new_value_map_3, 17);
 disp('fourth computed')
 toc
-% repeat with new values
-[reconstructed_map_3, new_value_map_3] = reconstruct_image(reconstructed_map_3, new_value_map_3, 23);
-disp('fifth computed')
-toc
 
 figure();
 imshowpair(im, reconstructed_map_3,'montage');
@@ -177,10 +127,6 @@ title('Original im and final reconstructed')
 % figure()
 % imshowpair(reconstructed_map_1, reconstructed_map_2,'montage');
 % title('reconstructed 1 and 2')
-
-
-
-
 
 % Generates a matrix of ratios, where the values are pixel ratio / max
 % square pixel ratio, the max being 1 and the smallest (likely) being 1 /
