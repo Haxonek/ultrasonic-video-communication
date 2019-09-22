@@ -1,6 +1,6 @@
 disp('Starting');
 
-im = imread('lower_res.png');
+im = imread('img/lower_res.png');
 im = uint8(im);
 im = rgb2gray(im);
 [m, n] = size(im);
