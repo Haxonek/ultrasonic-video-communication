@@ -17,7 +17,7 @@ im = rgb2gray(im);
 
 % this referes to the number of different pre-determined plots we'll create
 % and test. 
-num_of_con = 2048;
+num_of_con = 1024;
 % this referes to how many times the image will be broken up in each
 % concentration, it must match with what is hard coded in the function
 squares_height = 8;
@@ -51,7 +51,7 @@ disp('Building pre-set tables')
 tic
 value_maps = zeros(num_of_con,m,n,'uint8');
 for mc = 1:num_of_con
-    value_maps(mc,:,:) = generate_partitioned_pepper(m, n, 7812, squeeze(concentrations(mc,:)), squares_height, squares_width, base);
+    value_maps(mc,:,:) = generate_partitioned_pepper(m, n, 8012, squeeze(concentrations(mc,:)), squares_height, squares_width, base);
 end
 toc
 %% Create Sobel edge map
@@ -84,10 +84,10 @@ value_map = squeeze(value_maps(best_index,:,:));
 toc
 
 % Compare rankings to see how similar they are
-% disp('Salt Rank');
-% disp(reshape(salt_rank,[squares_width,squares_height])');
-% disp('Best Fit Concentration Rank')
-% disp(reshape(squeeze(conc_rank(best_index,:)),[squares_width,squares_height])');
+disp('Salt Rank');
+disp(reshape(salt_rank,[squares_width,squares_height])');
+disp('Best Fit Concentration Rank')
+disp(reshape(squeeze(conc_rank(best_index,:)),[squares_width,squares_height])');
 
 figure();
 imshowpair(image_salt_map, value_map, 'montage');
@@ -333,16 +333,13 @@ function [conc_rank] = generate_conc_rank(concentrations, squares_height, square
             end
         end
         
-        disp('size of max_queue')
-        disp(max_queue.size())
-        
         counter = 1;
         for c = 0:(squares_width*squares_height - 1)
             cur_val = max_queue.get(c);
             cur_index = squares_width*(cur_val(1) - 1) + cur_val(2);
             
             if conc_rank(i,cur_index) ~= 0
-                disp('ERROR - value already exists')
+                disp('ERROR (generate_conc_rank) - value already exists')
             end
             
             conc_rank(i,cur_index) = counter;
@@ -478,11 +475,11 @@ function pepper_map = generate_partitioned_pepper(mp, np, total, concentrations,
     pepper_map = zeros(mp,np,'uint8');
     
     m = ones(1,rows,'uint16').*round(mp/rows);
-    m(2:rows-1) = (2:rows-1)*m(1);
+    m(2:rows-1) = uint16(2:rows-1).*m(1);
     m(rows) = mp;
     
     n = ones(1,cols,'uint16').*round(np/cols);
-    n(2:cols-1) = (2:cols-1)*n(1);
+    n(2:cols-1) = uint16(2:cols-1).*n(1);
     n(cols) = np;
         
     % iterate through each partitan, assign number of pixels to it equal to
