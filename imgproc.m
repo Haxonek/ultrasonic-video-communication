@@ -7,13 +7,15 @@ im = rgb2gray(im);
 
 % this referes to the number of different pre-determined plots we'll create
 % and test. 
-num_of_con = 1024;
+num_of_con = 2048;
 % this referes to how many times the image will be broken up in each
 % concentration, it must match with what is hard coded in the function
-squares_in_con = 40;
+squares_height = 6;
+squares_width = 4;
+squares_in_con = squares_height*squares_width;
 
 % create map of conentrations of pixels
-base = 80;
+base = 32;
 concentrations = ones(num_of_con,squares_in_con);
 for mc = 1:num_of_con
     for i = squares_in_con+4:4:base
@@ -39,13 +41,16 @@ disp('Building pre-set tables')
 tic
 value_maps = zeros(num_of_con,m,n,'uint8');
 for mc = 1:num_of_con
-    value_maps(mc,:,:) = generate_partitioned_pepper2(m, n, 7812/2, squeeze(concentrations(mc,:)), 10, 4);
+    value_maps(mc,:,:) = generate_partitioned_pepper2(m, n, 7812, squeeze(concentrations(mc,:)), squares_height, squares_width, base);
+%     value_maps(mc,:,:) = generate_partitioned_pepper(m, n, 7812/2, squeeze(concentrations(mc,:)));
 end
 toc
-
+%% Create Sobel edge map
 % create salt map from image using sobel edge detection
-image_salt_map = edge(im, 'sobel');
+image_salt_map = uint8(edge(im, 'sobel'));
 image_salt_map = uint8(image_salt_map);
+
+%% decide on which value map to use
 
 % comparing image salt map with value maps
 % higher values = more similarity
@@ -53,38 +58,80 @@ disp('Comparing all values to value')
 tic
 ssim_comparison = 1;
 ssim_worst = -1;
-value_map = squeeze(value_maps(1,:,:));
-for i = 1:num_of_con
-    tmp = ssim(image_salt_map, squeeze(value_maps(i,:,:)));
-%     tmp = immse(image_salt_map, squeeze(value_maps(i,:,:)));
+% value_map = squeeze(value_maps(1,:,:));
 
-    if (tmp < ssim_comparison)
-        ssim_comparison = tmp;
-        value_map = squeeze(value_maps(i,:,:));
-    end
-    
-    if (tmp > ssim_worst)
-        ssim_worst = tmp;
-        worst_value_map = squeeze(value_maps(i,:,:));
+% edge pixels / edge pixels in max square
+% salt_ratio = generate_salt_ratio(image_salt_map, squares_height, squares_width);
+% min_conc_ratio = min(concentrations(1,:)); % should basically always be 1
+% conc_ratios = zeros(num_of_con, squares_in_con);
+% 
+% for i = 1:num_of_con
+%     conc_ratios(i,:) = (concentrations(i,:)-min_conc_ratio)./(max(concentrations(i,:))-min_conc_ratio);
+% end
+% 
+% [match, index] = find_closest_match(conc_ratios, salt_ratio);
+% 
+% value_map = squeeze(value_maps(index,:,:));
+% NEW method; rank them in order, fit ranks with optimization model
+
+% generate salt rank order
+salt_rank = generate_salt_rank(image_salt_map, squares_height, squares_width);
+
+% generate concentration rank order
+conc_rank = generate_conc_rank(concentrations, squares_height, squares_width);
+
+% finds the best match to the original salt rank
+% change to a linear programming model later, but just using immse for now
+best_index = 1;
+best_immse_value = 1;
+for i = 1:num_of_con
+    % get immse value
+    tmp_immse_value = immse(salt_rank, squeeze(conc_rank(i,:)));
+    % if it's better than old value, replace index and immse value
+    if tmp_immse_value < best_immse_value
+        best_index = i;
     end
 end
+disp('found best value map')
+% final should be set as value_map
+value_map = squeeze(value_maps(best_index,:,:));
 toc
-disp('SSIM values: '); 
-disp(ssim_comparison);
-disp(ssim_worst);
 
-pause;
-%%
-% figure();
-% subplot(1,1,1);
-% imshowpair(image_salt_map, value_map, 'montage');
-% title('salt image and best value map');
+% for i = 1:num_of_con
+%     % create concentration ratio
+%     conc_ratio = concentrations(i,:)./max(concentrations(i,:));
+%     
+%     % Run linear program to compare
+%     
+%     
+% %     tmp = ssim(image_salt_map, squeeze(value_maps(i,:,:)));
+% %     tmp = immse(image_salt_map, squeeze(value_maps(i,:,:)));
+% 
+%     if (tmp < ssim_comparison)
+%         ssim_comparison = tmp;
+%         value_map = squeeze(value_maps(i,:,:));
+%     end
+%     
+%     if (tmp > ssim_worst)
+%         ssim_worst = tmp;
+%         worst_value_map = squeeze(value_maps(i,:,:));
+%     end
+% end
+% toc
+% disp('SSIM values: '); 
+% disp(ssim_comparison);
+% disp(ssim_worst);
+
+figure();
+imshowpair(image_salt_map, value_map, 'montage');
+title('salt image and best value map');
+disp('Showing salt image vs best value map')
 % 
 % figure();
 % subplot(1,1,1);
 % imshowpair(image_salt_map, worst_value_map, 'montage');
 % title('salt image and worst value map');
-
+%% Rebuild image and display it (comparing it to the other images)
 
 % values I would send, but in this case we're just leaving them in the
 % vector
@@ -120,6 +167,300 @@ title('Original im and final reconstructed')
 % figure()
 % imshowpair(reconstructed_map_1, reconstructed_map_2,'montage');
 % title('reconstructed 1 and 2')
+
+
+
+
+
+% Generates a matrix of ratios, where the values are pixel ratio / max
+% square pixel ratio, the max being 1 and the smallest (likely) being 1 /
+% max.
+function ratio2 = generate_salt_rank(map, rows, cols)
+    ratio = zeros(rows,cols);
+    
+    [mp,np] = size(map);
+    
+    m = ones(1,rows).*round(mp/rows);
+    for i = 2:rows-1
+        m(i) = i*m(1);
+    end
+    m(rows) = mp;
+    
+    n = ones(1,cols).*round(np/cols);
+    for i = 2:cols-1
+        n(i) = i*n(1);
+    end
+    n(cols) = np;
+        
+    % iterate through each partitan, assign number of pixels to it equal to
+    % the ratio assigned in concentrations
+    for i = 1:rows
+        for j = 1:cols
+            
+            if i == 1 && j == 1
+                cur = map(1:m(i), 1:n(j));
+                ratio(i,j) = sum(sum(cur));
+            elseif i == 1
+                cur = map(1:m(i), n(j-1)+1:n(j));
+                ratio(i,j) = sum(sum(cur));
+            elseif j == 1
+                cur = map(m(i-1)+1:m(i), 1:n(j));
+                ratio(i,j) = sum(sum(cur));
+            else % neither == 1
+                cur = map(m(i-1)+1:m(i), n(j-1)+1:n(j));
+                ratio(i,j) = sum(sum(cur));
+            end
+        end
+    end
+    
+    % flatten 
+    ratio2 = zeros(1, rows*cols);
+    for i = 1:rows
+        for j = 1:cols
+            ratio2(i*j) = ratio(i,j);
+        end
+    end
+    
+    % remove straglers
+    for i = 1:rows*cols
+        % set all values that might be misinterpreted as a rank as the max
+        % value
+        if (ratio2(i) < rows*cols)
+            ratio2(i) = rows*cols+1;
+        end
+    end
+    
+    % order by rank
+    rank = 1;
+    for i = 1:rows*cols
+        cur_max = max(ratio2);
+        for j = 1:rows*cols
+            if (ratio2(j) == cur_max)
+                ratio2(j) = rank;
+                rank = rank + 1;
+                break;
+            end
+        end
+    end
+    disp('done')
+end
+
+function [conc_rank] = generate_conc_rank(concentrations, squares_height, squares_width)
+
+    [num,len] = size(concentrations);
+    
+    conc_rank = zeros(num,len);
+
+    for i = 1:1 % num -- just do one for now
+        m_max_queue = java.util.LinkedList;
+        n_max_queue = java.util.LinkedList;
+        max_queue = java.util.LinkedList;
+        
+        % create max heap
+        % add every value
+        % for each value above 0, itr through
+        
+        for cur_m = 1:squares_height
+            tmp_total = sum(squeeze(concentrations(i,(((cur_m-1)*squares_width)+1):cur_m*squares_width)));
+            has_added_row_sum = false; % has not yet added row, obvi
+            if m_max_queue.isEmpty()
+                m_max_queue.add([cur_m,tmp_total]);
+            else
+                tmp_index = [0,0];
+                for s = 0:m_max_queue.size()-1
+                    % 1 is index, 2 is sum value
+                    cur_vals = m_max_queue.get(s);
+                    if (cur_vals(2) < tmp_total && ~has_added_row_sum)
+                        % assign to temp to be shifted
+%                         tmp_index = cur_vals;
+                        % set sum to this spot
+                        tmp_index = m_max_queue.set(s,[cur_m,tmp_total]);
+                        % record that the row sum has already been added
+                        has_added_row_sum = true;
+                    elseif has_added_row_sum
+                        % shifting all values down
+                        tmp_index = m_max_queue.set(s,tmp_index);
+                    end
+                end
+                
+                if has_added_row_sum
+                    % add final value, extending size of ll by one
+                    m_max_queue.add(tmp_index);
+                else
+                    m_max_queue.add([cur_m,tmp_total]);
+                end
+            end
+        end
+        
+        % do the same for n row 
+        for cur_n = 1:squares_width
+            tmp_total = sum(squeeze(concentrations(i,(((cur_n-1)*squares_height)+1):cur_n*squares_height)));
+            has_added_row_sum = false; % has not yet added row, obvi
+            if n_max_queue.isEmpty()
+                n_max_queue.add([cur_n,tmp_total]);
+            else
+                tmp_index = [0,0];
+                for s = 0:n_max_queue.size()-1
+                    % 1 is index, 2 is sum value
+                    cur_vals = n_max_queue.get(s);
+                    if (cur_vals(2) < tmp_total && ~has_added_row_sum)
+                        % assign to temp to be shifted
+%                         tmp_index = cur_vals;
+                        % set sum to this spot
+                        tmp_index = n_max_queue.set(s,[cur_n,tmp_total]);
+                        % record that the row sum has already been added
+                        has_added_row_sum = true;
+                    elseif has_added_row_sum
+                        % shifting all values down
+                        tmp_index = n_max_queue.set(s,tmp_index);
+                    end
+                end
+                
+                if has_added_row_sum
+                    % add final value, extending size of ll by one
+                    n_max_queue.add(tmp_index);
+                else
+                    % has never added row sum, adding now
+                    n_max_queue.add([cur_n,tmp_total]);
+                end
+            end
+        end
+        
+        % now we need to take those two lists and recreate 
+        display(m_max_queue.size());
+        display(n_max_queue.size());
+        disp('sizes (n then m)')
+        disp(concentrations(i,1:4));
+        disp(concentrations(i,5:8));
+        disp(concentrations(i,9:12));
+        disp(concentrations(i,13:16));
+        disp(concentrations(i,17:20));
+        disp(concentrations(i,21:24));
+        disp('printed map')
+        
+        % build the rank index        
+        for j = 1:squares_height
+            cur_m = m_max_queue.get(j-1);
+            
+            % add for each n value that's above 1, loop
+            for k = 1:squares_width
+                cur_n = n_max_queue.get(k-1);
+
+                cur_val = cur_m(2) * cur_n(2);
+                
+                %%%% add sorted %%%%
+                
+                has_added_row_sum = false; % has not yet added row, obvi
+                if max_queue.isEmpty()
+                    max_queue.add([cur_m(1),cur_n(1),cur_val]);
+                else
+                    tmp_index = [0,0,0];
+                    for s = 0:max_queue.size()-1
+                        % 1 and 2 are the m and n index, 3 is sum value
+                        cur_vals = max_queue.get(s);
+                        if (cur_vals(3) < cur_val && ~has_added_row_sum)
+                            % assign to temp to be shifted
+    %                         tmp_index = cur_vals;
+                            % set sum to this spot
+                            tmp_index = max_queue.set(s,[cur_m(1),cur_n(1),cur_val]);
+                            % record that the row sum has already been added
+                            has_added_row_sum = true;
+                        elseif has_added_row_sum
+                            % shifting all values down
+                            tmp_index = max_queue.set(s,tmp_index);
+                        end
+                    end
+
+                    if has_added_row_sum
+                        % add final value, extending size of ll by one
+                        max_queue.add(tmp_index);
+                    else
+                        max_queue.add([cur_m(1),cur_n(1),cur_val]);
+                    end
+                end
+                %%%%  %%%%
+            end
+        end
+        
+        disp('size of max_queue')
+        disp(max_queue.size())
+        
+        counter = 1;
+        for c = 0:(squares_width*squares_height - 1)
+            cur_val = max_queue.get(c);
+            cur_index = squares_width*(cur_val(1) - 1) + cur_val(2);
+            
+            if conc_rank(i,cur_index) ~= 0
+                disp('ERROR - value already exists')
+            end
+            
+            conc_rank(i,cur_index) = counter;
+            counter = counter + 1;
+            
+        end
+        
+        % end
+        disp(conc_rank(i,1:4));
+        disp(conc_rank(i,5:8));
+        disp(conc_rank(i,9:12));
+        disp(conc_rank(i,13:16));
+        disp(conc_rank(i,17:20));
+        disp(conc_rank(i,21:24));
+        disp('done with one')
+    end
+end
+
+% Generates a matrix of ratios, where the values are pixel ratio / max
+% square pixel ratio, the max being 1 and the smallest (likely) being 1 /
+% max.
+function ratio2 = generate_salt_ratio(map, rows, cols)
+    ratio = zeros(rows,cols);
+    
+    [mp,np] = size(map);
+    
+    m = ones(1,rows).*round(mp/rows);
+    for i = 2:rows-1
+        m(i) = i*m(1);
+    end
+    m(rows) = mp;
+    
+    n = ones(1,cols).*round(np/cols);
+    for i = 2:cols-1
+        n(i) = i*n(1);
+    end
+    n(cols) = np;
+        
+    % iterate through each partitan, assign number of pixels to it equal to
+    % the ratio assigned in concentrations
+    for i = 1:rows
+        for j = 1:cols
+            
+            if i == 1 && j == 1
+                cur = map(1:m(i), 1:n(j));
+                ratio(i,j) = sum(sum(cur));
+            elseif i == 1
+                cur = map(1:m(i), n(j-1)+1:n(j));
+                ratio(i,j) = sum(sum(cur));
+            elseif j == 1
+                cur = map(m(i-1)+1:m(i), 1:n(j));
+                ratio(i,j) = sum(sum(cur));
+            else % neither == 1
+                cur = map(m(i-1)+1:m(i), n(j-1)+1:n(j));
+                ratio(i,j) = sum(sum(cur));
+            end
+        end
+    end
+    
+    ratio = ratio ./ (max(ratio));
+    
+    % flatten 
+    ratio2 = zeros(1, rows*cols);
+    for i = 1:rows
+        for j = 1:cols
+            ratio2(i*j) = ratio(i,j);
+        end
+    end
+end
 
 % This function takes in the compressed image and the value map and spits
 % out a reconstructed map by convolving the image and calculating the mean
@@ -238,7 +579,7 @@ function im_map = generate_compressed_image(pepper_map, im)
     end
 end
 
-function pepper_map = generate_partitioned_pepper2(mp, np, total, concentrations, rows, cols)
+function pepper_map = generate_partitioned_pepper2(mp, np, total, concentrations, rows, cols, base)
 
     if (size(concentrations) ~= rows*cols)
         disp('concentrations must equal to rows*cols')
@@ -258,7 +599,7 @@ function pepper_map = generate_partitioned_pepper2(mp, np, total, concentrations
     end
     n(cols) = np;
     
-    base = 80;
+%     base = 80;
     
     % iterate through each partitan, assign number of pixels to it equal to
     % the ratio assigned in concentrations
@@ -275,84 +616,6 @@ function pepper_map = generate_partitioned_pepper2(mp, np, total, concentrations
             end
         end
     end
-    
-end
-
-%
-function pepper_map = generate_partitioned_pepper(mp, np, total, concentrations)
-
-    if (size(concentrations) ~= 40)
-        disp('concentrations must be of size 40')
-    end
-
-    pepper_map = zeros(mp,np,'uint8');
-    
-    % TODO - MOVE INTO LOOPS
-    % I did it like this because originally it was only doing one or two
-    % squares, and I kept expanding it without adding a loop until we ended
-    % up with this lol
-
-    m1 = round(mp/10);
-    m2 = m1*2;
-    m3 = m1*3;
-    m4 = m1*4;
-    m5 = m1*5;
-    m6 = m1*6;
-    m7 = m1*7;
-    m8 = m1*8;
-    m9 = m1*9;
-    m10 = mp;
-    
-    n1 = round(np/4);
-    n2 = n1*2;
-    n3 = n1*3;
-    n4 = np;
-    
-    base = 60;
-
-    pepper_map(1:m1, 1:n1) = generate_binary_pepper(m1,n1,round(total*concentrations(1)/base));
-    pepper_map(m1+1:m2, 1:n1) = generate_binary_pepper(m2-m1,n1,round(total*concentrations(2)/base));
-    pepper_map(m2+1:m3, 1:n1) = generate_binary_pepper(m3-m2,n1,round(total*concentrations(3)/base));
-    pepper_map(m3+1:m4, 1:n1) = generate_binary_pepper(m4-m3,n1,round(total*concentrations(4)/base));
-    pepper_map(m4+1:m5, 1:n1) = generate_binary_pepper(m5-m4,n1,round(total*concentrations(5)/base));
-    pepper_map(m5+1:m6, 1:n1) = generate_binary_pepper(m6-m5,n1,round(total*concentrations(6)/base));
-    pepper_map(m6+1:m7, 1:n1) = generate_binary_pepper(m7-m6,n1,round(total*concentrations(7)/base));
-    pepper_map(m7+1:m8, 1:n1) = generate_binary_pepper(m8-m7,n1,round(total*concentrations(8)/base));
-    pepper_map(m8+1:m9, 1:n1) = generate_binary_pepper(m9-m8,n1,round(total*concentrations(9)/base));
-    pepper_map(m9+1:m10, 1:n1) = generate_binary_pepper(m10-m9,n1,round(total*concentrations(10)/base));
-    
-    pepper_map(1:m1, n1+1:n2) = generate_binary_pepper(m1,n2-n1,round(total*concentrations(11)/base));
-    pepper_map(m1+1:m2, n1+1:n2) = generate_binary_pepper(m2-m1,n2-n1,round(total*concentrations(12)/base));
-    pepper_map(m2+1:m3, n1+1:n2) = generate_binary_pepper(m3-m2,n2-n1,round(total*concentrations(13)/base));
-    pepper_map(m3+1:m4, n1+1:n2) = generate_binary_pepper(m4-m3,n2-n1,round(total*concentrations(14)/base));
-    pepper_map(m4+1:m5, n1+1:n2) = generate_binary_pepper(m5-m4,n2-n1,round(total*concentrations(15)/base));
-    pepper_map(m5+1:m6, n1+1:n2) = generate_binary_pepper(m6-m5,n2-n1,round(total*concentrations(16)/base));
-    pepper_map(m6+1:m7, n1+1:n2) = generate_binary_pepper(m7-m6,n2-n1,round(total*concentrations(17)/base));
-    pepper_map(m7+1:m8, n1+1:n2) = generate_binary_pepper(m8-m7,n2-n1,round(total*concentrations(18)/base));
-    pepper_map(m8+1:m9, n1+1:n2) = generate_binary_pepper(m9-m8,n2-n1,round(total*concentrations(19)/base));
-    pepper_map(m9+1:m10, n1+1:n2) = generate_binary_pepper(m10-m9,n2-n1,round(total*concentrations(20)/base));
-    
-    pepper_map(1:m1, n2+1:n3) = generate_binary_pepper(m1,n3-n2,round(total*concentrations(21)/base));
-    pepper_map(m1+1:m2, n2+1:n3) = generate_binary_pepper(m2-m1,n3-n2,round(total*concentrations(22)/base));
-    pepper_map(m2+1:m3, n2+1:n3) = generate_binary_pepper(m3-m2,n3-n2,round(total*concentrations(23)/base));
-    pepper_map(m3+1:m4, n2+1:n3) = generate_binary_pepper(m4-m3,n3-n2,round(total*concentrations(24)/base));
-    pepper_map(m4+1:m5, n2+1:n3) = generate_binary_pepper(m5-m4,n3-n2,round(total*concentrations(25)/base));
-    pepper_map(m5+1:m6, n2+1:n3) = generate_binary_pepper(m6-m5,n3-n2,round(total*concentrations(26)/base));
-    pepper_map(m6+1:m7, n2+1:n3) = generate_binary_pepper(m7-m6,n3-n2,round(total*concentrations(27)/base));
-    pepper_map(m7+1:m8, n2+1:n3) = generate_binary_pepper(m8-m7,n3-n2,round(total*concentrations(28)/base));
-    pepper_map(m8+1:m9, n2+1:n3) = generate_binary_pepper(m9-m8,n3-n2,round(total*concentrations(29)/base));
-    pepper_map(m9+1:m10, n2+1:n3) = generate_binary_pepper(m10-m9,n3-n2,round(total*concentrations(30)/base));
-    
-    pepper_map(1:m1, n3+1:n4) = generate_binary_pepper(m1,n4-n3,round(total*concentrations(31)/base));
-    pepper_map(m1+1:m2, n3+1:n4) = generate_binary_pepper(m2-m1,n4-n3,round(total*concentrations(32)/base));
-    pepper_map(m2+1:m3, n3+1:n4) = generate_binary_pepper(m3-m2,n4-n3,round(total*concentrations(33)/base));
-    pepper_map(m3+1:m4, n3+1:n4) = generate_binary_pepper(m4-m3,n4-n3,round(total*concentrations(34)/base));
-    pepper_map(m4+1:m5, n3+1:n4) = generate_binary_pepper(m5-m4,n4-n3,round(total*concentrations(35)/base));
-    pepper_map(m5+1:m6, n3+1:n4) = generate_binary_pepper(m6-m5,n4-n3,round(total*concentrations(36)/base));
-    pepper_map(m6+1:m7, n3+1:n4) = generate_binary_pepper(m7-m6,n4-n3,round(total*concentrations(37)/base));
-    pepper_map(m7+1:m8, n3+1:n4) = generate_binary_pepper(m8-m7,n4-n3,round(total*concentrations(38)/base));
-    pepper_map(m8+1:m9, n3+1:n4) = generate_binary_pepper(m9-m8,n4-n3,round(total*concentrations(39)/base));
-    pepper_map(m9+1:m10, n3+1:n4) = generate_binary_pepper(m10-m9,n4-n3,round(total*concentrations(40)/base));
     
 end
 
@@ -401,4 +664,24 @@ function bool = rowMatch(needle, haystack, index)
         end
     end
 end
+
+% returns the vector with the closest match, mean square
+function [match, index] = find_closest_match(set, key)
+
+    [m,n] = size(set);
+
+    min_val = 100;
+    
+    for i = 1:m
+        tmp = immse(squeeze(set(i,:)), key);
+        if tmp < min_val
+            min_val = tmp;
+            index = i;
+        end
+    end
+    
+    match = squeeze(set(index,:));
+    
+end
+
 
