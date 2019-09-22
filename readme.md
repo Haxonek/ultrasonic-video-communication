@@ -41,6 +41,17 @@ you try to make the size of each seperate concentration smaller. The solution
 to this is to rank each square (where each square has a different concentration),
 and then compare the ranks, and not just the pixels.
 
+```
+ex. img           ex. closest-match set
+ _ _ _ _            _ _ _ _ 
+|5|8|3|4|          |4|7|2|5|
+|6|1|2|7|          |6|1|3|8|
+
+```
+The ranking referes to the density of pixels in each square of the map, 
+where a higher density earns a higher ranking. Currently each map is 
+flattened and compared using immse(A,ref), with the closest match being used.
+
 Additionally this is great because it allows you to use different methods to 
 compare different maps. In this case you can now also use things like an LP 
 since you're only comparing < 50 concentrations per image instead of millions
