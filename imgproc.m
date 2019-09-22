@@ -128,6 +128,9 @@ title('Original im and final reconstructed')
 % imshowpair(reconstructed_map_1, reconstructed_map_2,'montage');
 % title('reconstructed 1 and 2')
 
+
+
+
 % Generates a matrix of ratios, where the values are pixel ratio / max
 % square pixel ratio, the max being 1 and the smallest (likely) being 1 /
 % max.
@@ -261,7 +264,6 @@ function [conc_rank] = generate_conc_rank(concentrations, squares_height, square
                     cur_vals = n_max_queue.get(s);
                     if (cur_vals(2) < tmp_total && ~has_added_row_sum)
                         % assign to temp to be shifted
-%                         tmp_index = cur_vals;
                         % set sum to this spot
                         tmp_index = n_max_queue.set(s,[cur_n,tmp_total]);
                         % record that the row sum has already been added
@@ -281,18 +283,6 @@ function [conc_rank] = generate_conc_rank(concentrations, squares_height, square
                 end
             end
         end
-        
-        % now we need to take those two lists and recreate 
-        display(m_max_queue.size());
-        display(n_max_queue.size());
-        disp('sizes (n then m)')
-        disp(concentrations(i,1:4));
-        disp(concentrations(i,5:8));
-        disp(concentrations(i,9:12));
-        disp(concentrations(i,13:16));
-        disp(concentrations(i,17:20));
-        disp(concentrations(i,21:24));
-        disp('printed map')
         
         % build the rank index        
         for j = 1:squares_height
@@ -316,7 +306,6 @@ function [conc_rank] = generate_conc_rank(concentrations, squares_height, square
                         cur_vals = max_queue.get(s);
                         if (cur_vals(3) < cur_val && ~has_added_row_sum)
                             % assign to temp to be shifted
-    %                         tmp_index = cur_vals;
                             % set sum to this spot
                             tmp_index = max_queue.set(s,[cur_m(1),cur_n(1),cur_val]);
                             % record that the row sum has already been added
@@ -334,7 +323,7 @@ function [conc_rank] = generate_conc_rank(concentrations, squares_height, square
                         max_queue.add([cur_m(1),cur_n(1),cur_val]);
                     end
                 end
-                %%%%  %%%%
+                %%%% add end %%%%
             end
         end
         
@@ -353,67 +342,6 @@ function [conc_rank] = generate_conc_rank(concentrations, squares_height, square
             conc_rank(i,cur_index) = counter;
             counter = counter + 1;
             
-        end
-        
-        % end
-        disp(conc_rank(i,1:4));
-        disp(conc_rank(i,5:8));
-        disp(conc_rank(i,9:12));
-        disp(conc_rank(i,13:16));
-        disp(conc_rank(i,17:20));
-        disp(conc_rank(i,21:24));
-        disp('done with one')
-    end
-end
-
-% Generates a matrix of ratios, where the values are pixel ratio / max
-% square pixel ratio, the max being 1 and the smallest (likely) being 1 /
-% max.
-function ratio2 = generate_salt_ratio(map, rows, cols)
-    ratio = zeros(rows,cols);
-    
-    [mp,np] = size(map);
-    
-    m = ones(1,rows).*round(mp/rows);
-    for i = 2:rows-1
-        m(i) = i*m(1);
-    end
-    m(rows) = mp;
-    
-    n = ones(1,cols).*round(np/cols);
-    for i = 2:cols-1
-        n(i) = i*n(1);
-    end
-    n(cols) = np;
-        
-    % iterate through each partitan, assign number of pixels to it equal to
-    % the ratio assigned in concentrations
-    for i = 1:rows
-        for j = 1:cols
-            
-            if i == 1 && j == 1
-                cur = map(1:m(i), 1:n(j));
-                ratio(i,j) = sum(sum(cur));
-            elseif i == 1
-                cur = map(1:m(i), n(j-1)+1:n(j));
-                ratio(i,j) = sum(sum(cur));
-            elseif j == 1
-                cur = map(m(i-1)+1:m(i), 1:n(j));
-                ratio(i,j) = sum(sum(cur));
-            else % neither == 1
-                cur = map(m(i-1)+1:m(i), n(j-1)+1:n(j));
-                ratio(i,j) = sum(sum(cur));
-            end
-        end
-    end
-    
-    ratio = ratio ./ (max(ratio));
-    
-    % flatten 
-    ratio2 = zeros(1, rows*cols);
-    for i = 1:rows
-        for j = 1:cols
-            ratio2(i*j) = ratio(i,j);
         end
     end
 end
@@ -599,7 +527,7 @@ end
 function bool = rowMatch(needle, haystack, index)
     bool = 0;
     
-    [mr,nr] = size(haystack);
+    [~,nr] = size(haystack);
     
     for mc = 1:(index-1)
         for nc = 1:nr
@@ -617,25 +545,6 @@ function bool = rowMatch(needle, haystack, index)
             end
         end
     end
-end
-
-% returns the vector with the closest match, mean square
-function [match, index] = find_closest_match(set, key)
-
-    [m,n] = size(set);
-
-    min_val = 100;
-    
-    for i = 1:m
-        tmp = immse(squeeze(set(i,:)), key);
-        if tmp < min_val
-            min_val = tmp;
-            index = i;
-        end
-    end
-    
-    match = squeeze(set(index,:));
-    
 end
 
 
