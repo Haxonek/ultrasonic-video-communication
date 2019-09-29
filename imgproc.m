@@ -56,7 +56,7 @@ end
 toc
 %% Create Sobel edge map
 % create salt map from image using sobel edge detection
-image_salt_map = uint8(edge(im, 'sobel'));
+image_salt_map = uint8(edge(im,'sobel'));
 
 %% decide on which value map to use
 
@@ -100,9 +100,19 @@ title('salt image and best value map');
 % imshowpair(image_salt_map, worst_value_map, 'montage');
 % title('salt image and worst value map');
 %% Rebuild image and display it (comparing it to the other images)
+% Running reconstruct_image() multiple times shuoldn't meaningfully impact
+% the time it takes to run if you overshoot how many times you need to run
+% the function, since it wouldn't perform the window convolution when there
+% are no squares to update, and the window function is the major time sink
+% in the function.
+% 
+% It is however important to note that the larger the kernel is time to
+% complete increases exponentially.
 
-% values I would send, but in this case we're just leaving them in the
-% vector
+% in theory the non-zero values in value_map would be sent to the client
+% from the server, however in this case that's not worth implementing since
+% it doesn't add anything, so we're just going to regenerate the map that
+% we'll use to rebuild the image with.
 compressed_map = generate_compressed_image(value_map, im);
 
 disp('Starting reconstruction of image')
@@ -208,9 +218,6 @@ end
 
 % This function takes all the concentations and creates a rank of each one,
 % and returns it in a flat matrix form.
-% 
-% TODO - remove m and n max queue's, they're useless now and only slow down
-% the code.
 function [conc_rank] = generate_conc_rank(concentrations, squares_height, squares_width)
 
     [num,len] = size(concentrations);
@@ -227,67 +234,18 @@ function [conc_rank] = generate_conc_rank(concentrations, squares_height, square
         % for each value above 0, itr through
         
         for cur_m = 1:squares_height
+            % create line sum
             tmp_total = sum(squeeze(concentrations(i,(((cur_m-1)*squares_width)+1):cur_m*squares_width)));
-            has_added_row_sum = false; % has not yet added row, obvi
-            if m_max_queue.isEmpty()
-                m_max_queue.add([cur_m,tmp_total]);
-            else
-                tmp_index = [0,0];
-                for s = 0:m_max_queue.size()-1
-                    % 1 is index, 2 is sum value
-                    cur_vals = m_max_queue.get(s);
-                    if (cur_vals(2) < tmp_total && ~has_added_row_sum)
-                        % assign to temp to be shifted
-                        % set sum to this spot
-                        tmp_index = m_max_queue.set(s,[cur_m,tmp_total]);
-                        % record that the row sum has already been added
-                        has_added_row_sum = true;
-                    elseif has_added_row_sum
-                        % shifting all values down
-                        tmp_index = m_max_queue.set(s,tmp_index);
-                    end
-                end
-                
-                if has_added_row_sum
-                    % add final value, extending size of ll by one
-                    m_max_queue.add(tmp_index);
-                else
-                    m_max_queue.add([cur_m,tmp_total]);
-                end
-            end
+            
+            % add it
+            m_max_queue.add([cur_m,tmp_total]);
         end
         
         % do the same for n row 
         for cur_n = 1:squares_width
             tmp_total = sum(squeeze(concentrations(i,(((cur_n-1)*squares_height)+1):cur_n*squares_height)));
-            has_added_row_sum = false; % has not yet added row, obvi
-            if n_max_queue.isEmpty()
-                n_max_queue.add([cur_n,tmp_total]);
-            else
-                tmp_index = [0,0];
-                for s = 0:n_max_queue.size()-1
-                    % 1 is index, 2 is sum value
-                    cur_vals = n_max_queue.get(s);
-                    if (cur_vals(2) < tmp_total && ~has_added_row_sum)
-                        % assign to temp to be shifted
-                        % set sum to this spot
-                        tmp_index = n_max_queue.set(s,[cur_n,tmp_total]);
-                        % record that the row sum has already been added
-                        has_added_row_sum = true;
-                    elseif has_added_row_sum
-                        % shifting all values down
-                        tmp_index = n_max_queue.set(s,tmp_index);
-                    end
-                end
-                
-                if has_added_row_sum
-                    % add final value, extending size of ll by one
-                    n_max_queue.add(tmp_index);
-                else
-                    % has never added row sum, adding now
-                    n_max_queue.add([cur_n,tmp_total]);
-                end
-            end
+            
+            n_max_queue.add([cur_n,tmp_total]);
         end
         
         % build the rank index        
