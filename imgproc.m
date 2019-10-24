@@ -70,17 +70,25 @@ conc_rank = generate_conc_rank(concentrations, squares_height, squares_width);
 % finds the best match to the original salt rank
 % change to a linear programming model later, but just using immse for now
 best_index = 1;
-best_immse_value = 100;
+best_immse_value = 10000;
+worst_immse_value = -10000;
 for i = 1:num_of_con
     % get immse value
     tmp_immse_value = immse(salt_rank, squeeze(conc_rank(i,:)));
     % if it's better than old value, replace index and immse value
     if tmp_immse_value < best_immse_value
+        best_immse_value = tmp_immse_value;
         best_index = i;
+    end
+    
+    if tmp_immse_value > worst_immse_value
+        worst_immse_value = tmp_immse_value;
+        worst_index = i;
     end
 end
 % final should be set as value_map
 value_map = squeeze(value_maps(best_index,:,:));
+worst_value_map = squeeze(value_maps(worst_index,:,:));
 toc
 
 % Compare rankings to see how similar they are
@@ -95,10 +103,9 @@ title('salt image and best value map');
 
 % Possibly re-add code to find worst value map, to ensure the maps are
 % being choosen correctly (would be map with largest immse value)
-% figure();
-% subplot(1,1,1);
-% imshowpair(image_salt_map, worst_value_map, 'montage');
-% title('salt image and worst value map');
+figure();
+imshowpair(image_salt_map, worst_value_map, 'montage');
+title('salt image and worst value map');
 %% Rebuild image and display it (comparing it to the other images)
 % Running reconstruct_image() multiple times shuoldn't meaningfully impact
 % the time it takes to run if you overshoot how many times you need to run
@@ -151,7 +158,7 @@ title('Original im and final reconstructed')
 % Generates a matrix of ratios, where the values are pixel ratio / max
 % square pixel ratio, the max being 1 and the smallest (likely) being 1 /
 % max.
-function ratio2 = generate_salt_rank(map, rows, cols)
+function return_rank = generate_salt_rank(map, rows, cols)
     ratio = zeros(rows,cols);
     
     [mp,np] = size(map);
@@ -214,15 +221,23 @@ function ratio2 = generate_salt_rank(map, rows, cols)
             end
         end
     end
+    
+    % REVERSE ORDER; I NEED TO FIX THIS PROPERLY
+    max_rank = max(ratio2) + 1;
+    return_rank = zeros(size(ratio2));
+    for i = 1:rows*cols
+        return_rank(i) = max_rank - ratio2(i);
+    end
 end
 
 % This function takes all the concentations and creates a rank of each one,
-% and returns it in a flat matrix form.
-function [conc_rank] = generate_conc_rank(concentrations, squares_height, squares_width)
+% and returns it in a flat matrix form. ret was [conc_rank]
+function [return_rank] = generate_conc_rank(concentrations, squares_height, squares_width)
 
     [num,len] = size(concentrations);
     
     conc_rank = zeros(num,len);
+    return_rank = zeros(size(conc_rank));
 
     for i = 1:num % -- just do one for now
         m_max_queue = java.util.LinkedList;
@@ -303,6 +318,13 @@ function [conc_rank] = generate_conc_rank(concentrations, squares_height, square
             conc_rank(i,cur_index) = counter;
             counter = counter + 1;
             
+        end
+        
+        % REVERSE ORDER; I NEED TO FIX THIS PROPERLY
+        % sets in return_rank
+        max_rank = max(conc_rank(i,:)) + 1;
+        for k = 1:len
+            return_rank(i,k) = max_rank - conc_rank(i,k);
         end
     end
 end
