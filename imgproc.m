@@ -17,7 +17,7 @@ im = rgb2gray(im);
 
 % this referes to the number of different pre-determined plots we'll create
 % and test. 
-num_of_con = 1024;
+num_of_con = 4096;
 % this referes to how many times the image will be broken up in each
 % concentration, it must match with what is hard coded in the function
 squares_height = 8;
@@ -54,6 +54,7 @@ for mc = 1:num_of_con
     value_maps(mc,:,:) = generate_partitioned_pepper(m, n, 8012, squeeze(concentrations(mc,:)), squares_height, squares_width, base);
 end
 toc
+fprintf("This table requires %i bytes (%iMB) for storage.\n", num_of_con*squares_in_con*1, round(num_of_con*squares_in_con*1/1000)); % where an int is 4 bytes, 32 bit
 %% Create Sobel edge map
 % create salt map from image using sobel edge detection
 image_salt_map = uint8(edge(im,'sobel'));
@@ -70,6 +71,7 @@ conc_rank = generate_conc_rank(concentrations, squares_height, squares_width);
 % finds the best match to the original salt rank
 % change to a linear programming model later, but just using immse for now
 best_index = 1;
+worst_index = 1;
 best_immse_value = 10000;
 worst_immse_value = -10000;
 for i = 1:num_of_con
@@ -92,7 +94,7 @@ worst_value_map = squeeze(value_maps(worst_index,:,:));
 toc
 
 % Compare rankings to see how similar they are
-disp('Salt Rank');
+disp('Salt Rank: ranking of image');
 disp(reshape(salt_rank,[squares_width,squares_height])');
 disp('Best Fit Concentration Rank')
 disp(reshape(squeeze(conc_rank(best_index,:)),[squares_width,squares_height])');
@@ -153,7 +155,7 @@ title('Original im and final reconstructed')
 
 %% Helper functions
 % All the functions called above are below, with a comment describing what
-% it does. Funcitons with obvious issues have a TODO
+% it does. Funcitons with issues have a TODO
 %
 % Generates a matrix of ratios, where the values are pixel ratio / max
 % square pixel ratio, the max being 1 and the smallest (likely) being 1 /
@@ -209,7 +211,9 @@ function return_rank = generate_salt_rank(map, rows, cols)
         end
     end
     
-    % order by rank
+    % order by rank by finding square iwth most pixels and assigning it the
+    % top rank
+    % TODO I think I can speed this up
     rank = 1;
     for i = 1:rows*cols
         cur_max = max(ratio2);
@@ -222,7 +226,7 @@ function return_rank = generate_salt_rank(map, rows, cols)
         end
     end
     
-    % REVERSE ORDER; I NEED TO FIX THIS PROPERLY
+    % REVERSE ORDER; I NEED TO IMPLEMENT THIS PROPERLY
     max_rank = max(ratio2) + 1;
     return_rank = zeros(size(ratio2));
     for i = 1:rows*cols

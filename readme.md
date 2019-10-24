@@ -26,8 +26,13 @@ This code has gone through a number of changes from the
 [original write-up](http://thomashansen.xyz/blog/low-bandwidth-video-streaming.html) 
 I wrote about it. The main changes are how the best value_map is chose, where 
 value_map referes to the pixels of each image that are sent (and specifically, 
-which blocks are focused on when sending pixels). It's also a variable in 
-the code.
+which blocks are focused on when sending pixels). Now I use a rank,
+where we rank the most important squares (high number = most important, low 
+number = least important), and we compare those ranks to value maps using
+immse. I'm still having a few issues with this method however I'm confident 
+has the ability to be better than just using immse, especially for images that
+have more rows and columns (i.e. higher resolution squares that partition the
+image).
 
 Note: I use the term "map" to refer to the set of pixels in an image, 
 generally after a funciton has been applied to it (such as edge-detection, 
